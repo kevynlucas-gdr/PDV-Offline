@@ -1,15 +1,13 @@
+Kotlin
 
 package br.com.pdvoffline
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -30,7 +28,8 @@ private val Purple = Color(0xFF5B57F2)
 private val Page = Color(0xFFF4F5FB)
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 
-private fun money(cents: Long) = brl.format(cents / 100.0)
+private fun money(cents: Long): String =
+    brl.format(cents / 100.0)
 
 private fun cents(value: String): Long =
     ((value.replace(",", ".").toDoubleOrNull() ?: 0.0) * 100).toLong()
@@ -39,7 +38,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = (application as PdvApplication).database
-        setContent { PdvApp(db) }
+        setContent {
+            PdvApp(db)
+        }
     }
 }
 
@@ -91,15 +92,18 @@ fun PdvApp(db: AppDatabase) {
                     containerColor = MaterialTheme.colorScheme.surface
                 ) {
                     listOf(
-                        "Início", "Catálogo", "Vender",
-                        "Financeiro", "Mais"
+                        "Início",
+                        "Catálogo",
+                        "Vender",
+                        "Financeiro",
+                        "Mais"
                     ).forEach { item ->
                         NavigationBarItem(
                             selected = tab == item,
                             onClick = { tab = item },
                             icon = {
                                 Icon(
-                                    when (item) {
+                                    imageVector = when (item) {
                                         "Início" -> Icons.Default.Home
                                         "Catálogo" -> Icons.Default.Inventory
                                         "Vender" -> Icons.Default.PointOfSale
@@ -110,14 +114,18 @@ fun PdvApp(db: AppDatabase) {
                                     tint = if (item == "Vender") Color.White else Purple,
                                     modifier = if (item == "Vender") {
                                         Modifier.size(25.dp)
-                                    } else Modifier
+                                    } else {
+                                        Modifier
+                                    }
                                 )
                             },
                             label = { Text(item) },
                             colors = NavigationBarItemDefaults.colors(
                                 indicatorColor = if (item == "Vender") {
                                     Purple
-                                } else Purple.copy(alpha = .12f)
+                                } else {
+                                    Purple.copy(alpha = 0.12f)
+                                }
                             )
                         )
                     }
@@ -125,46 +133,78 @@ fun PdvApp(db: AppDatabase) {
             }
         ) { padding ->
             Column(
-                Modifier.fillMaxSize()
+                Modifier
+                    .fillMaxSize()
                     .padding(padding)
                     .padding(horizontal = 16.dp)
             ) {
                 when (tab) {
                     "Início" -> HomeScreen(
-                        products.size, sales, cash != null,
+                        products.size,
+                        sales,
+                        cash != null,
                         onGo = { tab = it }
                     )
 
                     "Catálogo" -> CatalogScreen(
-                        products, query, { query = it },
+                        products,
+                        query,
+                        { query = it },
                         { showProduct = true },
                         onDelete = { id ->
-                            scope.launch { dao.archiveProduct(id) }
+                            scope.launch {
+                                dao.archiveProduct(id)
+                            }
                         }
                     )
 
                     "Vender" -> SaleScreen(
-                        products, customers, cart, { cart = it },
-                        query, { query = it },
-                        discount, { discount = it },
-                        paymentMethod, { paymentMethod = it },
-                        received, { received = it },
+                        products = products,
+                        customers = customers,
+                        cart = cart,
+                        onCart = { cart = it },
+                        query = query,
+                        onQuery = { query = it },
+                        discount = discount,
+                        onDiscount = { discount = it },
+                        method = paymentMethod,
+                        onMethod = { paymentMethod = it },
+                        received = received,
+                        onReceived = { received = it },
                         onFinish = {
                             scope.launch {
                                 try {
                                     val gross = cart.sumOf { (p, q) ->
                                         (p.salePrice * q).toLong()
                                     }
-                                    val total = (gross - cents(discount)).coerceAtLeast(0)
+
+                                    val discountValue = cents(discount)
+
+                                    require(discountValue >= 0 && discountValue < gross) {
+                                        "O desconto deve ser menor que o valor da venda."
+                                    }
+
+                                    val total = gross - discountValue
+
+                                    if (paymentMethod == "DINHEIRO") {
+                                        require(cents(received) >= total) {
+                                            "O valor recebido é insuficiente."
+                                        }
+                                    }
+
                                     val payments = listOf(paymentMethod to total)
 
                                     val saleId = repo.finishSale(
-                                        cart, payments, null, cents(discount)
+                                        cart,
+                                        payments,
+                                        null,
+                                        discountValue
                                     )
 
                                     cart = emptyList()
                                     received = ""
                                     discount = "0"
+
                                     message = "Venda #$saleId finalizada com sucesso."
                                 } catch (e: Exception) {
                                     message = e.message
@@ -177,9 +217,13 @@ fun PdvApp(db: AppDatabase) {
                                 cart.map {
                                     if (it.first.id == p.id) {
                                         it.first to (it.second + 1)
-                                    } else it
+                                    } else {
+                                        it
+                                    }
                                 }
-                            } else cart + (p to 1.0)
+                            } else {
+                                cart + (p to 1.0)
+                            }
                         }
                     )
 
@@ -206,10 +250,15 @@ fun PdvApp(db: AppDatabase) {
                     )
 
                     else -> MoreScreen(
-                        dark, { dark = it },
-                        cash, cashValue, { cashValue = it },
-                        movementValue, { movementValue = it },
-                        movementDesc, { movementDesc = it },
+                        dark,
+                        { dark = it },
+                        cash,
+                        cashValue,
+                        { cashValue = it },
+                        movementValue,
+                        { movementValue = it },
+                        movementDesc,
+                        { movementDesc = it },
                         onOpen = {
                             scope.launch {
                                 runCatching {
@@ -231,6 +280,8 @@ fun PdvApp(db: AppDatabase) {
                                     )
                                 }.onSuccess {
                                     message = "Movimentação registrada."
+                                    movementValue = ""
+                                    movementDesc = ""
                                 }.onFailure {
                                     message = it.message ?: "Erro."
                                 }
@@ -242,6 +293,8 @@ fun PdvApp(db: AppDatabase) {
                                     repo.closeCash(cents(movementValue))
                                 }.onSuccess {
                                     message = "Caixa fechado."
+                                    movementValue = ""
+                                    movementDesc = ""
                                 }.onFailure {
                                     message = it.message ?: "Erro."
                                 }
@@ -258,13 +311,13 @@ fun PdvApp(db: AppDatabase) {
                 onDismiss = { showProduct = false },
                 onSave = { p ->
                     scope.launch {
-                        runCatching { dao.insertProduct(p) }
-                            .onSuccess {
-                                message = "Produto cadastrado."
-                            }
-                            .onFailure {
-                                message = "Código já utilizado ou dados inválidos."
-                            }
+                        runCatching {
+                            dao.insertProduct(p)
+                        }.onSuccess {
+                            message = "Produto cadastrado."
+                        }.onFailure {
+                            message = "Código já utilizado ou dados inválidos."
+                        }
                     }
                     showProduct = false
                 }
@@ -276,13 +329,13 @@ fun PdvApp(db: AppDatabase) {
                 onDismiss = { showCustomer = false },
                 onSave = { c ->
                     scope.launch {
-                        runCatching { dao.insertCustomer(c) }
-                            .onSuccess {
-                                message = "Cliente cadastrado."
-                            }
-                            .onFailure {
-                                message = "Não foi possível cadastrar."
-                            }
+                        runCatching {
+                            dao.insertCustomer(c)
+                        }.onSuccess {
+                            message = "Cliente cadastrado."
+                        }.onFailure {
+                            message = "Não foi possível cadastrar."
+                        }
                     }
                     showCustomer = false
                 }
@@ -297,38 +350,55 @@ fun PdvApp(db: AppDatabase) {
                         Text("OK")
                     }
                 },
-                title = { Text("Meu PDV") },
-                text = { Text(message) }
+                title = {
+                    Text("Meu PDV")
+                },
+                text = {
+                    Text(message)
+                }
             )
         }
     }
 }
 
 @Composable
-private fun PageTitle(title: String, subtitle: String? = null) {
+private fun PageTitle(
+    title: String,
+    subtitle: String? = null
+) {
     Spacer(Modifier.height(18.dp))
+
     Text(
         title,
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Bold
     )
+
     if (subtitle != null) {
         Text(subtitle, color = Color.Gray)
     }
+
     Spacer(Modifier.height(16.dp))
 }
 
 @Composable
-private fun CardBox(content: @Composable ColumnScope.() -> Unit) {
+private fun CardBox(
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.padding(16.dp), content = content)
+        Column(
+            Modifier.padding(16.dp),
+            content = content
+        )
     }
 }
 
@@ -342,30 +412,40 @@ private fun HomeScreen(
     val today = sales.filter {
         it.createdAt >= System.currentTimeMillis() - 24 * 60 * 60 * 1000
     }
+
     val total = today.sumOf { it.total }
 
     LazyColumn {
         item {
             PageTitle("Olá! 👋", "Resumo da sua loja")
+
             CardBox {
                 Text("Vendas de hoje", color = Color.Gray)
+
                 Text(
                     money(total),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
+
                 Spacer(Modifier.height(8.dp))
+
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("${today.size} vendas")
+
                     Text(
                         "Ticket médio: ${
-                            money(if (today.isEmpty()) 0 else total / today.size)
+                            money(
+                                if (today.isEmpty()) 0L
+                                else total / today.size
+                            )
                         }"
                     )
                 }
+
                 Text(
                     if (cashOpen) "● Caixa aberto" else "○ Caixa fechado",
                     color = if (cashOpen) Color(0xFF168653) else Color.Gray
@@ -375,6 +455,7 @@ private fun HomeScreen(
 
         item {
             Text("Acesso rápido", fontWeight = FontWeight.Bold)
+
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -389,7 +470,9 @@ private fun HomeScreen(
                     }
                 }
             }
+
             Spacer(Modifier.height(8.dp))
+
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -397,12 +480,16 @@ private fun HomeScreen(
                 OutlinedButton(
                     onClick = { onGo("Mais") },
                     modifier = Modifier.weight(1f)
-                ) { Text("Caixa") }
+                ) {
+                    Text("Caixa")
+                }
 
                 OutlinedButton(
                     onClick = { onGo("Financeiro") },
                     modifier = Modifier.weight(1f)
-                ) { Text("Financeiro") }
+                ) {
+                    Text("Financeiro")
+                }
             }
         }
 
@@ -410,13 +497,16 @@ private fun HomeScreen(
             CardBox {
                 Text("Catálogo", fontWeight = FontWeight.Bold)
                 Text("$productCount produtos cadastrados")
+
                 Button(onClick = { onGo("Catálogo") }) {
                     Text("Gerenciar produtos")
                 }
             }
         }
 
-        item { Text("Últimas vendas", fontWeight = FontWeight.Bold) }
+        item {
+            Text("Últimas vendas", fontWeight = FontWeight.Bold)
+        }
 
         items(sales.take(5)) { sale ->
             CardBox {
@@ -425,7 +515,10 @@ private fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Venda #${sale.id}")
-                    Text(money(sale.total), fontWeight = FontWeight.Bold)
+                    Text(
+                        money(sale.total),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -444,10 +537,13 @@ private fun CatalogScreen(
         PageTitle("Catálogo", "${products.size} itens cadastrados")
 
         OutlinedTextField(
-            query, onQuery,
-            Modifier.fillMaxWidth(),
+            value = query,
+            onValueChange = onQuery,
+            modifier = Modifier.fillMaxWidth(),
             label = { Text("Buscar nome ou código") },
-            leadingIcon = { Icon(Icons.Default.Search, null) },
+            leadingIcon = {
+                Icon(Icons.Default.Search, null)
+            },
             singleLine = true
         )
 
@@ -472,21 +568,34 @@ private fun CatalogScreen(
                 }
             ) { p ->
                 CardBox {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column(Modifier.weight(1f)) {
-                            Text(p.name, fontWeight = FontWeight.Bold)
+                            Text(
+                                p.name,
+                                fontWeight = FontWeight.Bold
+                            )
+
                             Text(
                                 "Código: ${p.code} • Estoque: ${p.stock}",
                                 color = Color.Gray
                             )
+
                             Text(
                                 money(p.salePrice),
                                 color = Purple,
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        IconButton(onClick = { onDelete(p.id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Excluir")
+
+                        IconButton(
+                            onClick = { onDelete(p.id) }
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Excluir"
+                            )
                         }
                     }
                 }
@@ -514,22 +623,28 @@ private fun SaleScreen(
     onAdd: (Product) -> Unit
 ) {
     val total = (
-        cart.sumOf { (p, q) -> (p.salePrice * q).toLong() } -
-            cents(discount)
-        ).coerceAtLeast(0)
+        cart.sumOf { (p, q) ->
+            (p.salePrice * q).toLong()
+        } - cents(discount)
+    ).coerceAtLeast(0L)
 
     Column {
         PageTitle("Nova venda", "Adicione itens ao carrinho")
 
         OutlinedTextField(
-            query, onQuery,
-            Modifier.fillMaxWidth(),
+            value = query,
+            onValueChange = onQuery,
+            modifier = Modifier.fillMaxWidth(),
             label = { Text("Pesquisar produto") },
-            leadingIcon = { Icon(Icons.Default.Search, null) },
+            leadingIcon = {
+                Icon(Icons.Default.Search, null)
+            },
             singleLine = true
         )
 
-        LazyColumn(Modifier.weight(1f)) {
+        LazyColumn(
+            Modifier.weight(1f)
+        ) {
             items(
                 products.filter {
                     it.name.contains(query, true) ||
@@ -538,16 +653,29 @@ private fun SaleScreen(
                 }
             ) { p ->
                 CardBox {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column(Modifier.weight(1f)) {
-                            Text(p.name, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                p.name,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
                             Text(
                                 "${money(p.salePrice)} • Estoque ${p.stock}",
                                 color = Color.Gray
                             )
                         }
-                        IconButton(onClick = { onAdd(p) }) {
-                            Icon(Icons.Default.AddCircle, null, tint = Purple)
+
+                        IconButton(
+                            onClick = { onAdd(p) }
+                        ) {
+                            Icon(
+                                Icons.Default.AddCircle,
+                                null,
+                                tint = Purple
+                            )
                         }
                     }
                 }
@@ -555,15 +683,31 @@ private fun SaleScreen(
         }
 
         CardBox {
-            Text("Carrinho (${cart.size} itens)", fontWeight = FontWeight.Bold)
+            Text(
+                "Carrinho (${cart.size} itens)",
+                fontWeight = FontWeight.Bold
+            )
 
             cart.forEach { (p, q) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${p.name} × ${q.toInt()}", Modifier.weight(1f))
-                    Text(money((p.salePrice * q).toLong()))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "${p.name} × ${q.toInt()}",
+                        Modifier.weight(1f)
+                    )
+
+                    Text(
+                        money((p.salePrice * q).toLong())
+                    )
+
                     IconButton(
                         onClick = {
-                            onCart(cart.filterNot { it.first.id == p.id })
+                            onCart(
+                                cart.filterNot {
+                                    it.first.id == p.id
+                                }
+                            )
                         }
                     ) {
                         Icon(Icons.Default.Close, null)
@@ -572,8 +716,9 @@ private fun SaleScreen(
             }
 
             OutlinedTextField(
-                discount, onDiscount,
-                Modifier.fillMaxWidth(),
+                value = discount,
+                onValueChange = onDiscount,
+                modifier = Modifier.fillMaxWidth(),
                 label = { Text("Desconto em R$") },
                 singleLine = true
             )
@@ -588,13 +733,20 @@ private fun SaleScreen(
 
             ExposedDropdownMenuBox(
                 expanded = expanded,
-                onExpandedChange = { expanded = it }
+                onExpandedChange = {
+                    expanded = it
+                }
             ) {
                 OutlinedTextField(
-                    method, {},
-                    Modifier.menuAnchor().fillMaxWidth(),
+                    value = method,
+                    onValueChange = {},
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth(),
                     readOnly = true,
-                    label = { Text("Forma de pagamento") },
+                    label = {
+                        Text("Forma de pagamento")
+                    },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded)
                     }
@@ -602,7 +754,9 @@ private fun SaleScreen(
 
                 ExposedDropdownMenu(
                     expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    onDismissRequest = {
+                        expanded = false
+                    }
                 ) {
                     listOf(
                         "DINHEIRO",
@@ -610,11 +764,13 @@ private fun SaleScreen(
                         "CARTAO_CREDITO",
                         "CARTAO_DEBITO",
                         "FIADO"
-                    ).forEach {
+                    ).forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(it.replace("_", " ")) },
+                            text = {
+                                Text(option.replace("_", " "))
+                            },
                             onClick = {
-                                onMethod(it)
+                                onMethod(option)
                                 expanded = false
                             }
                         )
@@ -624,26 +780,42 @@ private fun SaleScreen(
 
             if (method == "DINHEIRO") {
                 OutlinedTextField(
-                    received, onReceived,
-                    Modifier.fillMaxWidth(),
-                    label = { Text("Valor recebido (R$)") },
+                    value = received,
+                    onValueChange = onReceived,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Valor recebido (R$)")
+                    },
                     singleLine = true
                 )
+
                 val change = cents(received) - total
+
                 Text(
                     if (change >= 0) {
                         "Troco: ${money(change)}"
                     } else {
                         "Faltam: ${money(-change)}"
                     },
-                    color = if (change >= 0) Color(0xFF168653) else Color.Red
+                    color = if (change >= 0) {
+                        Color(0xFF168653)
+                    } else {
+                        Color.Red
+                    }
                 )
             }
 
             Button(
                 onClick = onFinish,
                 enabled = cart.isNotEmpty() &&
-                    (if (method == "DINHEIRO") cents(received) >= total else true),
+                    cents(discount) >= 0 &&
+                    cents(discount) < cart.sumOf { (p, q) ->
+                        (p.salePrice * q).toLong()
+                    } &&
+                    (
+                        method != "DINHEIRO" ||
+                            cents(received) >= total
+                    ),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp)
             ) {
@@ -666,9 +838,17 @@ private fun FinanceScreen(
 
         CardBox {
             Text("Saldo registrado", color = Color.Gray)
-            val balance = entries.filter { it.paid }.sumOf {
-                if (it.kind == "RECEITA") it.amount else -it.amount
-            }
+
+            val balance = entries
+                .filter { it.paid }
+                .sumOf {
+                    if (it.kind == "RECEITA") {
+                        it.amount
+                    } else {
+                        -it.amount
+                    }
+                }
+
             Text(
                 money(balance),
                 style = MaterialTheme.typography.headlineMedium,
@@ -677,17 +857,25 @@ private fun FinanceScreen(
         }
 
         CardBox {
-            Text("Registrar despesa", fontWeight = FontWeight.Bold)
+            Text(
+                "Registrar despesa",
+                fontWeight = FontWeight.Bold
+            )
+
             OutlinedTextField(
-                desc, { desc = it },
-                Modifier.fillMaxWidth(),
+                value = desc,
+                onValueChange = { desc = it },
+                modifier = Modifier.fillMaxWidth(),
                 label = { Text("Descrição") }
             )
+
             OutlinedTextField(
-                amount, { amount = it },
-                Modifier.fillMaxWidth(),
+                value = amount,
+                onValueChange = { amount = it },
+                modifier = Modifier.fillMaxWidth(),
                 label = { Text("Valor (R$)") }
             )
+
             Button(
                 onClick = {
                     if (desc.isNotBlank() && cents(amount) > 0) {
@@ -702,21 +890,27 @@ private fun FinanceScreen(
             }
         }
 
-        Text("Histórico", fontWeight = FontWeight.Bold)
+        Text(
+            "Histórico",
+            fontWeight = FontWeight.Bold
+        )
 
         LazyColumn {
-            items(entries) { e ->
+            items(entries) { entry ->
                 CardBox {
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(e.description)
+                        Text(entry.description)
+
                         Text(
-                            money(e.amount),
-                            color = if (e.kind == "RECEITA") {
+                            money(entry.amount),
+                            color = if (entry.kind == "RECEITA") {
                                 Color(0xFF168653)
-                            } else Color.Red
+                            } else {
+                                Color.Red
+                            }
                         )
                     }
                 }
@@ -745,20 +939,35 @@ private fun MoreScreen(
         PageTitle("Mais", "Configurações e operações")
 
         CardBox {
-            Text("Perfil do proprietário", fontWeight = FontWeight.Bold)
-            Text("Operador principal • Dono", color = Color.Gray)
+            Text(
+                "Perfil do proprietário",
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                "Operador principal • Dono",
+                color = Color.Gray
+            )
         }
 
         CardBox {
-            Text("Controle de caixa", fontWeight = FontWeight.Bold)
+            Text(
+                "Controle de caixa",
+                fontWeight = FontWeight.Bold
+            )
 
             if (cash == null) {
                 Text("Caixa fechado")
+
                 OutlinedTextField(
-                    cashValue, onCashValue,
-                    Modifier.fillMaxWidth(),
-                    label = { Text("Fundo de troco (R$)") }
+                    value = cashValue,
+                    onValueChange = onCashValue,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Fundo de troco (R$)")
+                    }
                 )
+
                 Button(
                     onClick = onOpen,
                     modifier = Modifier.fillMaxWidth()
@@ -769,31 +978,46 @@ private fun MoreScreen(
                 Text(
                     "Caixa aberto desde ${
                         java.text.SimpleDateFormat(
-                            "dd/MM HH:mm", Locale("pt", "BR")
+                            "dd/MM HH:mm",
+                            Locale("pt", "BR")
                         ).format(cash.openedAt)
                     }"
                 )
 
                 OutlinedTextField(
-                    movementValue, onMovementValue,
-                    Modifier.fillMaxWidth(),
-                    label = { Text("Valor (R$)") }
-                )
-                OutlinedTextField(
-                    movementDesc, onMovementDesc,
-                    Modifier.fillMaxWidth(),
-                    label = { Text("Descrição") }
+                    value = movementValue,
+                    onValueChange = onMovementValue,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Valor (R$)")
+                    }
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = movementDesc,
+                    onValueChange = onMovementDesc,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Descrição")
+                    }
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Button(
-                        onClick = { onMove("SUPRIMENTO") },
+                        onClick = {
+                            onMove("SUPRIMENTO")
+                        },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Suprimento")
                     }
+
                     Button(
-                        onClick = { onMove("SANGRIA") },
+                        onClick = {
+                            onMove("SANGRIA")
+                        },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFFB64A4A)
@@ -813,23 +1037,46 @@ private fun MoreScreen(
         }
 
         CardBox {
-            Text("Clientes", fontWeight = FontWeight.Bold)
+            Text(
+                "Clientes",
+                fontWeight = FontWeight.Bold
+            )
+
             Button(onClick = onCustomer) {
                 Text("Cadastrar cliente")
             }
         }
 
         CardBox {
-            Text("Aparência", fontWeight = FontWeight.Bold)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Tema escuro", Modifier.weight(1f))
-                Switch(checked = dark, onCheckedChange = onDark)
+            Text(
+                "Aparência",
+                fontWeight = FontWeight.Bold
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Tema escuro",
+                    Modifier.weight(1f)
+                )
+
+                Switch(
+                    checked = dark,
+                    onCheckedChange = onDark
+                )
             }
         }
 
         CardBox {
-            Text("Armazenamento", fontWeight = FontWeight.Bold)
-            Text("Os dados são mantidos no banco SQLite local deste aparelho.")
+            Text(
+                "Armazenamento",
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                "Os dados são mantidos no banco SQLite local deste aparelho."
+            )
         }
     }
 }
@@ -847,30 +1094,64 @@ private fun ProductDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Novo produto") },
+        title = {
+            Text("Novo produto")
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Nome") })
-                OutlinedTextField(code, { code = it }, label = { Text("Código único") })
-                OutlinedTextField(price, { price = it }, label = { Text("Preço de venda (R$)") })
-                OutlinedTextField(cost, { cost = it }, label = { Text("Preço de custo (R$)") })
-                OutlinedTextField(stock, { stock = it }, label = { Text("Estoque inicial") })
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedTextField(
+                    name,
+                    { name = it },
+                    label = { Text("Nome") }
+                )
+
+                OutlinedTextField(
+                    code,
+                    { code = it },
+                    label = { Text("Código único") }
+                )
+
+                OutlinedTextField(
+                    price,
+                    { price = it },
+                    label = { Text("Preço de venda (R$)") }
+                )
+
+                OutlinedTextField(
+                    cost,
+                    { cost = it },
+                    label = { Text("Preço de custo (R$)") }
+                )
+
+                OutlinedTextField(
+                    stock,
+                    { stock = it },
+                    label = { Text("Estoque inicial") }
+                )
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (name.isNotBlank() && code.isNotBlank() && cents(price) > 0) {
-                    onSave(
-                        Product(
-                            name = name.trim(),
-                            code = code.trim(),
-                            salePrice = cents(price),
-                            costPrice = cents(cost),
-                            stock = stock.toDoubleOrNull() ?: 0.0
+            TextButton(
+                onClick = {
+                    if (
+                        name.isNotBlank() &&
+                        code.isNotBlank() &&
+                        cents(price) > 0
+                    ) {
+                        onSave(
+                            Product(
+                                name = name.trim(),
+                                code = code.trim(),
+                                salePrice = cents(price),
+                                costPrice = cents(cost),
+                                stock = stock.toDoubleOrNull() ?: 0.0
+                            )
                         )
-                    )
+                    }
                 }
-            }) {
+            ) {
                 Text("Salvar")
             }
         },
@@ -892,30 +1173,37 @@ private fun CustomerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Novo cliente") },
+        title = {
+            Text("Novo cliente")
+        },
         text = {
             Column {
                 OutlinedTextField(
-                    name, { name = it },
+                    name,
+                    { name = it },
                     label = { Text("Nome") }
                 )
+
                 OutlinedTextField(
-                    phone, { phone = it },
+                    phone,
+                    { phone = it },
                     label = { Text("Telefone") }
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (name.isNotBlank()) {
-                    onSave(
-                        Customer(
-                            name = name.trim(),
-                            phone = phone.trim()
+            TextButton(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        onSave(
+                            Customer(
+                                name = name.trim(),
+                                phone = phone.trim()
+                            )
                         )
-                    )
+                    }
                 }
-            }) {
+            ) {
                 Text("Salvar")
             }
         },
