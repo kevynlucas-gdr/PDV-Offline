@@ -40,7 +40,9 @@ class PdvRepository(private val db: AppDatabase) {
         val cash = dao.openCash()
         payments.filter { it.first == "DINHEIRO" }.forEach {
             if (cash != null) dao.insertCashMovement(
-                CashMovement(cash.id, type = "VENDA_DINHEIRO", amount = it.second, description = "Venda #$saleId")
+                CashMovement(
+                    sessionId = cash.id,
+                    type = "VENDA_DINHEIRO", amount = it.second, description = "Venda #$saleId")
             )
         }
         payments.filter { it.first != "FIADO" }.forEach {
