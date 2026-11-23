@@ -2,7 +2,6 @@ package br.com.pdvoffline.data
 
 import android.content.Context
 import androidx.room.*
-import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "products", indices = [Index(value = ["code"], unique = true)])
@@ -10,13 +9,9 @@ data class Product(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val code: String,
-    val barcode: String = "",
-    val category: String = "",
-    val description: String = "",
-    val salePrice: Long, // centavos
+    val salePrice: Long,
     val costPrice: Long = 0,
     val stock: Double = 0.0,
-    val minStock: Double = 0.0,
     val isService: Boolean = false,
     val active: Boolean = true
 )
@@ -25,10 +20,7 @@ data class Product(
 data class Customer(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val phone: String = "",
-    val cpf: String = "",
-    val address: String = "",
-    val notes: String = ""
+    val phone: String = ""
 )
 
 @Entity(tableName = "sales")
@@ -69,7 +61,8 @@ data class CashSession(
     val closedAt: Long? = null,
     val openingFloat: Long,
     val closingCount: Long? = null,
-    val operator: String = "Proprietário",
+    val expectedCash: Long? = null,
+    val difference: Long? = null,
     val isOpen: Boolean = true
 )
 
@@ -77,7 +70,7 @@ data class CashSession(
 data class CashMovement(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val sessionId: Long,
-    val type: String, // VENDA_DINHEIRO, SUPRIMENTO, SANGRIA
+    val type: String,
     val amount: Long,
     val description: String,
     val createdAt: Long = System.currentTimeMillis()
@@ -86,10 +79,9 @@ data class CashMovement(
 @Entity(tableName = "financial_entries")
 data class FinancialEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val kind: String, // RECEITA, DESPESA, A_RECEBER, A_PAGAR
+    val kind: String,
     val description: String,
     val amount: Long,
-    val dueAt: Long? = null,
     val paid: Boolean = false,
     val customerId: Long? = null,
     val createdAt: Long = System.currentTimeMillis()
@@ -100,17 +92,11 @@ interface PdvDao {
     @Query("SELECT * FROM products WHERE active = 1 ORDER BY name")
     fun observeProducts(): Flow<List<Product>>
 
-    @Query("SELECT * FROM products WHERE active = 1 AND (name LIKE '%' || :q || '%' OR code LIKE '%' || :q || '%' OR barcode LIKE '%' || :q || '%') ORDER BY name")
-    fun searchProducts(q: String): Flow<List<Product>>
-
     @Query("SELECT * FROM products WHERE id = :id")
     suspend fun product(id: Long): Product?
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertProduct(product: Product): Long
-
-    @Update
-    suspend fun updateProduct(product: Product)
 
     @Query("UPDATE products SET active = 0 WHERE id = :id")
     suspend fun archiveProduct(id: Long)
@@ -124,17 +110,8 @@ interface PdvDao {
     @Insert
     suspend fun insertCustomer(customer: Customer): Long
 
-    @Update
-    suspend fun updateCustomer(customer: Customer)
-
     @Query("SELECT * FROM sales ORDER BY createdAt DESC")
     fun observeSales(): Flow<List<Sale>>
-
-    @Query("SELECT * FROM sales WHERE createdAt >= :from AND createdAt < :to AND status = 'FINALIZADA'")
-    suspend fun salesBetween(from: Long, to: Long): List<Sale>
-
-    @Query("SELECT * FROM sale_items WHERE saleId = :saleId")
-    suspend fun itemsForSale(saleId: Long): List<SaleItem>
 
     @Insert
     suspend fun insertSale(sale: Sale): Long
@@ -160,17 +137,14 @@ interface PdvDao {
     @Insert
     suspend fun insertCashMovement(movement: CashMovement)
 
-    @Query("SELECT * FROM cash_movements WHERE sessionId = :sessionId ORDER BY createdAt DESC")
-    fun observeCashMovements(sessionId: Long): Flow<List<CashMovement>>
+    @Query("SELECT * FROM cash_movements WHERE sessionId = :sessionId")
+    suspend fun cashMovements(sessionId: Long): List<CashMovement>
 
     @Insert
     suspend fun insertFinancial(entry: FinancialEntry)
 
     @Query("SELECT * FROM financial_entries ORDER BY createdAt DESC")
     fun observeFinancial(): Flow<List<FinancialEntry>>
-
-    @Query("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE method = 'FIADO'")
-    fun unusedDebtAggregate(): Flow<Long>
 }
 
 @Database(
