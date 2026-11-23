@@ -35,6 +35,8 @@ import br.com.pdvoffline.data.*
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(v: Long) = brl.format(v / 100.0)
