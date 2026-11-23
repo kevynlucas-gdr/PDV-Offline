@@ -3,6 +3,8 @@ package br.com.pdvoffline.data
 import android.content.Context
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Entity(tableName = "products", indices = [Index(value = ["code"], unique = true)])
 data class Product(
