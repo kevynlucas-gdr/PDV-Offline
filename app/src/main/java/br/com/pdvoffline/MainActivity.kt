@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package br.com.pdvoffline
 
 import android.os.Bundle
@@ -7,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -20,12 +23,16 @@ import java.util.Locale
 
 private val brl = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
 private fun money(value: Long) = brl.format(value / 100.0)
-private fun cents(value: String): Long = try {
-    BigDecimal(value.trim().replace(".", "").replace(",", "."))
-        .movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact()
-} catch (_: Exception) {
-    try { BigDecimal(value.trim().replace(",", ".")).movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact() }
-    catch (_: Exception) { 0L }
+private fun cents(value: String): Long {
+    val raw = value.trim().replace("R$", "", ignoreCase = true).replace(" ", "")
+    if (raw.isBlank()) return 0L
+    val normalized = if (raw.contains(",")) raw.replace(".", "").replace(",", ".") else raw
+    return try {
+        BigDecimal(normalized).movePointRight(2)
+            .setScale(0, RoundingMode.HALF_UP).longValueExact()
+    } catch (_: Exception) {
+        0L
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -179,7 +186,8 @@ fun PdvApp(db: AppDatabase) {
                         } }
                     }
                     "Caixa" -> {
-                        if (cash == null) {
+                        val currentCash = cash
+                        if (currentCash == null) {
                             Text("Caixa fechado")
                             OutlinedTextField(cashInput, { cashInput = it }, Modifier.fillMaxWidth(), label = { Text("Fundo de troco (R$)") })
                             Button(onClick = { scope.launch {
@@ -187,7 +195,7 @@ fun PdvApp(db: AppDatabase) {
                                 catch (e: Exception) { notice = e.message ?: "Erro ao abrir caixa." }
                             } }) { Text("Abrir caixa") }
                         } else {
-                            Text("Caixa aberto desde ${java.text.SimpleDateFormat("dd/MM HH:mm", Locale("pt", "BR")).format(cash.openedAt)}")
+                            Text("Caixa aberto desde ${java.text.SimpleDateFormat("dd/MM HH:mm", Locale("pt", "BR")).format(currentCash.openedAt)}")
                             OutlinedTextField(movement, { movement = it }, Modifier.fillMaxWidth(), label = { Text("Valor (R$)") })
                             OutlinedTextField(movementDesc, { movementDesc = it }, Modifier.fillMaxWidth(), label = { Text("Descrição") })
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
