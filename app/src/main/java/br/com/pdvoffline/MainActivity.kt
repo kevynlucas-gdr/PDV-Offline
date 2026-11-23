@@ -1,4 +1,3 @@
-Kotlin
 
 package br.com.pdvoffline
 
